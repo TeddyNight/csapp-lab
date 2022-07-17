@@ -1,0 +1,79 @@
+rdi rsi rdx rcx r8 r9
+0x603780 input address
+strings_not_equal(0x603780,0x402400)
+Phase 1 length:52
+Phase 1: Border relations with Canada have never been better. 
+0x401363
+0x401370
+Phase 2 "%d %d %d %d %d %d"i
+Phase 2 
+不要掉进细节的陷进里，区分系统调用
+善用gdb的watch功能
+Phase 2: 1 2 4 8 16 32
+Phase 3 "%d %d"
+Phase 3 6 682
+还是算不清那个内存地址？？晕晕晕
+Phase 4: 1 0
+经典障眼法，差点掉坑里
+还是抓住原来的变量这个方法
+Phase 5 length:6
+Phase 5: 9on567
+0x66:0x4024b9
+0x6c:0x4024bf
+0x79:0x4024be
+0x65:0x4024b5
+0x72:0x4024b6
+0x73:0x4024b7
+0x4024b0是个数组
+0x4010bd
+%rdi,%rsi
+看这个函数：strings_not_equal(0x6038c0,0x40245e)
+return 0
+倒着看，因为这里要的是return，看%eax，然后那里的是%edx %edx的值由前面几条语句确定，而现在知道%edx的值是跳转语句根据条件决定的 
+Phase 6:4 3 2 1 6 5
+        3 4 5 6 1 2
+0x6032d0:0x14c
+0x6032e0:0xa8
+0x6032f0:0x39c
+0x603300:0x2b3
+0x603310:0x1dd
+0x603320:0x1bb
+
+0x20(%rsp) 是0x7fffffffe0b0 第一次 这个要大，下一个要小
+0x28(%rsp) 0x7fffffffe0b8 第二次 这里的会放在 0x7fffffffe0b0指向的元素之后
+0x40119d:第一次，<=1跳，不跳，设%edx=0x6032d0
+        接着遍历链表，次数取决于当前位数字（减7后的），最终落在0x603320
+        把0x603320存在0x7fffffffe0b0
+        +4基地址到0x7fffffffe094
+        :第二次 同 0x7fffffffe0b8
+        :第三次 同 0x7fffffffe0c0
+        :第四次 同 0x7fffffffe0c8
+        :第五次 同 0x7fffffffe0d0
+        :第六次 =1 跳到+143 0x401183
+        存到0x7fffffffe0d8
+到+183 0x4011ab结束
+0x7fffffffe0b0 放到%rbx上=>%rcx
++8 0x7fffffffe0b8 放到%rax上
++201 循环开始:%rax求值放到了%rdx上 (0x7fffffffe0b8)
+        %rdx求值放到了(%rcx+8)0x7fffffffe0b8上
+        %rdx放到了%rcx上
+循环到第5次
+这个就是个重新排链表，顺序：前面大后面小 
+还是得要慢慢一步一步分析，读懂程序，做做记录？不要试图往脑子压栈..
+
+0x7fffffffe0c8
+直到0x40116f 完成每个数字减0
+0x401176开始设置地址
+一个链表，0x401176(+130)在遍历链表
+0x40119a:7-第一个数小于1 跳转设置0x6032d0:0x14c 
+直到第三个小于5
+%rsp->%rbx
+0x40118d:给0x7fffffffe0b8存入0x00603310:0x1dd 
+0x7fffffffe090 存输入的数字，从数字7开始，7-第一个存第一个
+0x4011a9 0x6032e0 改变了%rdx 变0x603320:0x1bb
+0x4011a4,0x401183:给寄存器存入0x6032d0:0x14c
+0x40119d 第二个数<1 会跳转
+0x401176:0x6032d0+0x8->0x6032f0:0x39c够大
+所有数-1小于等于5,而且还不能一样：数字范围1到6
+第一个数不等于第二三个
+第二个不等于第三个
