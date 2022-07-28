@@ -15,11 +15,55 @@ struct cache_block{
 	unsigned long long tag;
        	unsigned long long index;
 	struct cache_block *prev;
+	unsigned visit;
 	bool vaild;
 };
 
 int logger(char op,unsigned long long add,int size,char *msg){
 	if(verbose) printf("%c %llx,%d %s\n",op,add,size,msg);
+	return 0;
+}
+
+struct cache_block* find_one(struct cache_block* s,unsigned long long index,unsigned long long tag){
+	while(s){
+		if(s->index==index) break;
+		s=s->prev;
+	}
+	struct cache_block *t=s;
+	bool find=false;
+	// find one matched
+	while(!find){
+		// find vaild one
+		if(t->tag==tag&&t->vaild) find=true;
+		if(!(t->prev)||t->prev->index!=index) break;
+		else if(!find) t=t->prev;
+	}
+	if(!find) t=s;
+	// find available space
+	while(!find){
+		if(!(t->vaild)) find=true;
+		if(!(t->prev)||t->prev->index!=index) break;
+		else if(!find) t=t->prev;
+	}
+	if(!find) t=s;
+	unsigned visit=s->visit;
+	// find the least frequently used one
+	while(!find&&s){
+		//equal?
+		if(s->visit>=visit) t=s;
+		if(!(s->prev)||s->prev->index!=index) break;
+		s=s->prev;
+	}
+	// reset visit counter
+	t->visit=0;
+	return t;
+}
+
+int record_time(struct cache_block *t){
+	while(t!=NULL){
+		t->visit++;
+		t=t->prev;
+	}
 	return 0;
 }
 
@@ -71,6 +115,7 @@ int main(int argc, char *argv[])
 			t->vaild=false;
 			t->tag=0;
 			t->index=i;
+			t->visit=0;
 			cache=t;
 		}
 	}
@@ -90,19 +135,9 @@ int main(int argc, char *argv[])
 		unsigned long long d_tag=d_add>>offset_t;
 		// 2^4 is 2 xor 4 !!
 		unsigned long long d_index=(d_add>>num_b)&a_index;
-		struct cache_block *t=cache;
-		// Firstly, find the one match the sign
-		// Then, if not, find the one whose previous one with bigger sign
-		// Finally, if not, stop at the first one of this index
-		// Therefore, the signs in a group, decrease as the pointer cache increasing
-		while(t->prev!=NULL){
-			if(t->index==d_index){
-				if(t->tag==d_tag&&t->vaild) break;
-				else if(t->prev->index!=d_index) break;
-				else if(t->prev->tag<d_tag) break;
-			}
-			t=t->prev;
-		}
+		struct cache_block *t=find_one(cache,d_index,d_tag);
+		//record time
+		record_time(cache);
 		// When the checker was put in the while loop above, it would not check the first one in the group
 		if(t->tag==d_tag&&t->vaild){
 			hit++;
