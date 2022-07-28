@@ -50,7 +50,11 @@ struct cache_block* find_one(struct cache_block* s,unsigned long long index,unsi
 	// find the least frequently used one
 	while(!find&&s){
 		//equal?
-		if(s->visit>=visit) t=s;
+		if(s->visit>=visit){
+			// forget to update the max visit cause errors, inspired by the answers on the Internet
+			visit=s->visit;
+			t=s;
+		}
 		if(!(s->prev)||s->prev->index!=index) break;
 		s=s->prev;
 	}
