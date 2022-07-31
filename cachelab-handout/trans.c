@@ -19,9 +19,168 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
  *     searches for that string to identify the transpose function to
  *     be graded. 
  */
+char transpose_submit_desc1[] = "Transpose submission1";
+void transpose_submit1(int M, int N, int A[N][M], int B[M][N])
+{
+	// s=5,E=1,b=5 32*32bytes
+	// by using 8*8 matrix, misses reach to 343
+	// you have to do sth with conflict miss
+	int bsize=8;
+	for(int j=0;j<M;j+=bsize){
+		for(int i=0;i<N;i+=bsize){
+			// bsize*bsize small matrix
+			for(int jj=j;jj<j+bsize;jj++){
+				for(int ii=i;ii<i+bsize;ii++){
+					B[jj][ii]=A[ii][jj];
+				}
+			}
+		}
+	}
+
+}
+
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
+	// s=5,E=1,b=5 32*32 bytes
+	if(M==61&&N==67){
+		//B是3行不冲突
+		//A是4行不冲突
+		for(int i=0;i<64;i+=4){
+			for(int j=0;j<60;j+=4){
+				for(int ii=i;ii<i+4;ii++){
+					for(int jj=j;jj<j+4;jj++){
+						A[ii][jj]=B[jj][ii];
+					}
+				}
+			}
+		}
+		for(int i=64;i<67;i++){
+			for(int j=60;j<61;j++){
+				B[j][i]=A[i][j];
+			}
+		}
+	}
+	// 64*64: 1258
+	if(M==64&&N==64){
+		for(int i=0;i<N;i+=8){
+			for(int j=0;j<M;j+=8){
+				int a,b,c,d,e,f,g,h;
+				for(int ii=i;ii<i+4;ii++){
+					a=A[ii][j];
+					b=A[ii][j+1];
+					c=A[ii][j+2];
+					d=A[ii][j+3];
+					//ii=i+3，往下跳，A不与B冲突，为下一块保存好一块A，因为两块A冲突，这时候能减少conflict miss
+					if(ii!=i+3||i==j){
+						//针对i=j对角线，除了最右下角那块，A与B冲突的情况，把A保存到B不冲突的块，这样下面那行开始的时候不会冲突
+						if(i==j&&i<N-8){
+							//ii-i get the index
+							for(int k=0;k<4;k++) B[j+ii-i][i+8+k]=A[ii][j+4+k];
+							for(int k=0;k<4;k++) B[j+ii-i][i+12+k]=A[ii+4][j+4+k];
+						}
+						e=A[ii+4][j];
+						f=A[ii+4][j+1];
+						g=A[ii+4][j+2];
+						h=A[ii+4][j+3];
+					}
+					else if(ii==i+3){
+						e=A[ii][j+4];
+						f=A[ii][j+5];
+						g=A[ii][j+6];
+						h=A[ii][j+7];
+					}
+					B[j][ii]=a;
+					B[j+1][ii]=b;
+					B[j+2][ii]=c;
+					B[j+3][ii]=d;
+					if(ii!=i+3||i==j){
+						B[j][ii+4]=e;
+						B[j+1][ii+4]=f;
+						B[j+2][ii+4]=g;
+						B[j+3][ii+4]=h;
+					}
+					else{
+						B[j][ii+4]=A[ii+4][j];
+						B[j+1][ii+4]=A[ii+4][j+1];
+						B[j+2][ii+4]=A[ii+4][j+2];
+						B[j+3][ii+4]=A[ii+4][j+3];
+					}
+				}
+				// 接着算下一行，当不是对角线的情况的时候，能利用上加载上的缓存
+				// 并且先选择右下角那块
+				// 因为这时候还能利用上最后一次i+3，i+3的4个存到变量里？
+				// 虽然只减少一次不命中，但一共减少8*8=64次，在1360的时候这个优化还是很可观
+				for(int ii=i+7;ii>i+3;ii--){
+					//for i=j 对角线
+					if(i==j&&i<N-8){
+						//ii-i-4 get the index
+						a=B[j+ii-i-4][i+12];
+						b=B[j+ii-i-4][i+13];
+						c=B[j+ii-i-4][i+14];
+						d=B[j+ii-i-4][i+15];
+					}
+					else{
+						//ii start from i+7
+						a=A[ii][j+4];
+						b=A[ii][j+5];
+						c=A[ii][j+6];
+						d=A[ii][j+7];
+					}
+					//for i=j 对角线
+					if(i==j&&i<N-8){
+						e=B[j+ii-i-4][i+8];
+						f=B[j+ii-i-4][i+9];
+						g=B[j+ii-i-4][i+10];
+						h=B[j+ii-i-4][i+11];
+					}
+					//针对不在对角线以及最右小角那块
+					else if(ii!=i+7||i==j){
+						e=A[ii-4][j+4];
+						f=A[ii-4][j+5];
+						g=A[ii-4][j+6];
+						h=A[ii-4][j+7];
+					}
+					B[j+4][ii]=a;
+					B[j+5][ii]=b;
+					B[j+6][ii]=c;
+					B[j+7][ii]=d;
+					B[j+4][ii-4]=e;
+					B[j+5][ii-4]=f;
+					B[j+6][ii-4]=g;
+					B[j+7][ii-4]=h;
+				}
+			}
+		}
+	}
+	// 32*32
+	else {
+		for(int i=0;i<N;i+=8){
+			for(int j=0;j<M;j+=8){
+				// bsize*bsize small matrix
+				for(int ii=i;ii<i+8;ii++){
+					// conflict miss happens when blocks of B may replace the blocks of A
+					// codes below aim to reduce conflict miss
+					int a=A[ii][j];
+					int b=A[ii][j+1];
+					int c=A[ii][j+2];
+					int d=A[ii][j+3];
+					int e=A[ii][j+4];
+					int f=A[ii][j+5];
+					int g=A[ii][j+6];
+					int h=A[ii][j+7];
+					B[j][ii]=a;
+					B[j+1][ii]=b;
+					B[j+2][ii]=c;
+					B[j+3][ii]=d;
+					B[j+4][ii]=e;
+					B[j+5][ii]=f;
+					B[j+6][ii]=g;
+					B[j+7][ii]=h;
+				}
+			}
+		}
+	}
 }
 
 /* 
@@ -57,9 +216,10 @@ void registerFunctions()
 {
     /* Register your solution function */
     registerTransFunction(transpose_submit, transpose_submit_desc); 
+    //registerTransFunction(transpose_submit1, transpose_submit_desc1); 
 
     /* Register any additional transpose functions */
-    registerTransFunction(trans, trans_desc); 
+    //registerTransFunction(trans, trans_desc); 
 
 }
 
@@ -81,4 +241,3 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N])
     }
     return 1;
 }
-
