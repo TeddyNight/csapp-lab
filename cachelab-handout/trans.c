@@ -22,27 +22,6 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
 char transpose_submit_desc1[] = "Transpose submission1";
 void transpose_submit1(int M, int N, int A[N][M], int B[M][N])
 {
-	// s=5,E=1,b=5 32*32bytes
-	// by using 8*8 matrix, misses reach to 343
-	// you have to do sth with conflict miss
-	int bsize=8;
-	for(int j=0;j<M;j+=bsize){
-		for(int i=0;i<N;i+=bsize){
-			// bsize*bsize small matrix
-			for(int jj=j;jj<j+bsize;jj++){
-				for(int ii=i;ii<i+bsize;ii++){
-					B[jj][ii]=A[ii][jj];
-				}
-			}
-		}
-	}
-
-}
-
-char transpose_submit_desc[] = "Transpose submission";
-void transpose_submit(int M, int N, int A[N][M], int B[M][N])
-{
-	// s=5,E=1,b=5 32*32 bytes
 	if(M==61&&N==67){
 		//B是3行不冲突
 		//A是4行不冲突
@@ -50,19 +29,159 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 			for(int j=0;j<60;j+=4){
 				for(int ii=i;ii<i+4;ii++){
 					for(int jj=j;jj<j+4;jj++){
-						A[ii][jj]=B[jj][ii];
+						B[jj][ii]=A[ii][jj];
 					}
 				}
 			}
 		}
-		for(int i=64;i<67;i++){
-			for(int j=60;j<61;j++){
+		for(int i=0;i<64;i++) B[60][i]=A[i][60];
+		for(int i=64;i<N;i++){
+			for(int j=0;j<M;j++){
 				B[j][i]=A[i][j];
 			}
 		}
 	}
+}
+
+char transpose_submit_desc[] = "Transpose submission";
+void transpose_submit(int M, int N, int A[N][M], int B[M][N])
+{
+	// s=5,E=1,b=5 32*32 bytes
+	if(M==61&&N==67){
+		//B是3.82行不冲突
+		//A是4.19行不冲突
+		//2019
+		for(int i=0;i<64;i+=8){
+			for(int j=0;j<60/*64*/;j+=8){
+				int a,b,c,d,e,f,g,h,t;
+				for(int ii=i;ii<i+4;ii++){
+					a=A[ii][j];
+					b=A[ii][j+1];
+					c=A[ii][j+2];
+					d=A[ii][j+3];
+					//A断掉的块接上来
+					if(j==56){
+						e=A[ii][j+4];
+						f=A[ii+4][j+4];
+						B[j+4][ii]=e;
+						B[j+4][ii+4]=f;
+
+					}
+					e=A[ii+4][j];
+					f=A[ii+4][j+1];
+					g=A[ii+4][j+2];
+					h=A[ii+4][j+3];
+					if(j!=0&&ii==0){
+						t=A[64][j-1];
+						B[j-1][64]=t;
+						B[j-1][65]=A[65][j-1];
+						B[j-1][66]=A[66][j-1];
+					}
+					B[j][ii]=a;
+					B[j][ii+4]=e;
+					//B断掉的块接上来
+					if(ii==0){
+						t=A[64][j];
+						a=A[65][j];
+						e=A[66][j];
+						B[j][64]=t;
+						B[j][65]=a;
+						B[j][66]=e;
+					}
+					B[j+1][ii]=b;
+					B[j+1][ii+4]=f;
+					//B断掉的块接上来
+					if(ii==0){
+						t=A[64][j+1];
+						a=A[65][j+1];
+						e=A[66][j+1];
+						B[j+1][64]=t;
+						B[j+1][65]=a;
+						B[j+1][66]=e;
+					}
+					B[j+2][ii]=c;
+					B[j+2][ii+4]=g;
+					//B断掉的块接上来
+					if(ii==0){
+						t=A[64][j+2];
+						a=A[65][j+2];
+						e=A[66][j+2];
+						B[j+2][64]=t;
+						B[j+2][65]=a;
+						B[j+2][66]=e;
+					}
+					B[j+3][ii]=d;
+					B[j+3][ii+4]=h;
+					//B断掉的块接上来
+					if(ii==0&&j==56){
+						t=A[64][j+3];
+						a=A[65][j+3];
+						e=A[66][j+3];
+						B[j+3][64]=t;
+						B[j+3][65]=a;
+						B[j+3][66]=e;
+					}
+
+				}
+				if(j==56) break;
+				for(int ii=i+7;ii>i+3;ii--){
+					a=A[ii][j+4];
+					b=A[ii][j+5];
+					c=A[ii][j+6];
+					d=A[ii][j+7];
+					e=A[ii-4][j+4];
+					f=A[ii-4][j+5];
+					g=A[ii-4][j+6];
+					h=A[ii-4][j+7];
+					B[j+4][ii]=a;
+					//B断掉的块接上来
+					if(ii-4==0){
+						t=A[64][j+3];
+						a=A[65][j+3];
+						B[j+3][64]=t;
+						B[j+3][65]=a;
+						B[j+3][66]=A[66][j+3];
+					}
+					B[j+4][ii-4]=e;
+					B[j+5][ii]=b;
+					//B断掉的块接上来
+					if(ii-4==0){
+						t=A[64][j+4];
+						a=A[65][j+4];
+						e=A[66][j+4];
+						B[j+4][64]=t;
+						B[j+4][65]=a;
+						B[j+4][66]=e;
+					}
+					B[j+5][ii-4]=f;
+					B[j+6][ii]=c;
+					//B断掉的块接上来
+					if(ii-4==0){
+						t=A[64][j+5];
+						a=A[65][j+5];
+						e=A[66][j+5];
+						B[j+5][64]=t;
+						B[j+5][65]=a;
+						B[j+5][66]=e;
+					}
+					B[j+6][ii-4]=g;
+					B[j+7][ii]=d;
+					if(ii-4==0){
+						t=A[64][j+6];
+						a=A[65][j+6];
+						e=A[66][j+6];
+						B[j+6][64]=t;
+						B[j+6][65]=a;
+						B[j+6][66]=e;
+					}
+					B[j+7][ii-4]=h;
+				}
+			}
+		}
+		for(int i=64;i<N;i++) B[60][i]=A[i][60];
+	}
 	// 64*64: 1258
-	if(M==64&&N==64){
+	else if(M==64&&N==64){
 		for(int i=0;i<N;i+=8){
 			for(int j=0;j<M;j+=8){
 				int a,b,c,d,e,f,g,h;
