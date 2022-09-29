@@ -166,8 +166,8 @@ int tmin(void) {
  *   Rating: 1
  */
 int isTmax(int x) {
-  //奇怪的地方在于为什么我x+1得到0可是!后还是0？而~x可以，难不成符号位溢出有问题？？
-  return !((~x)^(1<<31));
+  //Tmax+1=Tmin Tmin=~Tmax 但要排除x=-1的情况，网上学习到的!!的使用
+  return !((x+1)^(~x))&!!(x^(~0));
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
